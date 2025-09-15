@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from supabase import create_client
 from datetime import datetime
 from typing import Optional
+from pydub import AudioSegment
 
 # Configure logging
 logging.basicConfig(
@@ -53,9 +54,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def is_silent(audio_file_path, silence_threshold=-50.0):
+    audio = AudioSegment.from_file(audio_file_path)
+    return audio.dBFS < silence_threshold
+
 @app.post("/analyze_sales_call")
 async def analyze_sales_call(file: UploadFile = File(...)):
     temp_file_path = "temp_audio.m4a"
+    wav_file_path = "temp_audio.wav"  # <-- Initialize here
     bucket_name = "audio-files"
 
     try:
@@ -69,6 +75,31 @@ async def analyze_sales_call(file: UploadFile = File(...)):
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         logger.info(f"Successfully saved temporary file: {temp_file_path}")
+
+        # Silence detection
+        if is_silent(temp_file_path):
+            logger.info("No audio detected in uploaded file")
+            return {
+                "transcription": "",
+                "analysis": "No audio detected"
+            }
+
+        # Convert audio to WAV format for consistency
+        try:
+            audio = AudioSegment.from_file(temp_file_path)
+            audio.export(wav_file_path, format="wav")
+            logger.info(f"Audio converted to WAV format: {wav_file_path}")
+        except Exception as e:
+            error_msg = f"Failed to convert audio to WAV format: {str(e)}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
+
+        # Check if the audio is silent
+        if is_silent(wav_file_path):
+            raise HTTPException(
+                status_code=400,
+                detail="The audio file is too silent. Please provide a clearer audio file."
+            )
 
         # Generate a unique file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -90,7 +121,7 @@ async def analyze_sales_call(file: UploadFile = File(...)):
             raise HTTPException(status_code=500, detail=f"Failed to upload recording to storage: {error_msg}")
 
         # Transcribe using Whisper
-        with open(temp_file_path, "rb") as audio_file:
+        with open(wav_file_path, "rb") as audio_file:
             logger.info("Starting audio transcription with Whisper")
             transcript = client.audio.transcriptions.create(
                 file=audio_file,
@@ -159,3 +190,9 @@ Transcript:
                 logger.info(f"Cleaned up temporary file: {temp_file_path}")
             except Exception as e:
                 logger.error(f"Failed to clean up temporary file: {str(e)}")
+        if os.path.exists(wav_file_path):
+            try:
+                os.remove(wav_file_path)
+                logger.info(f"Cleaned up temporary WAV file: {wav_file_path}")
+            except Exception as e:
+                logger.error(f"Failed to clean up temporary WAV file: {str(e)}")
