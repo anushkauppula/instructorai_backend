@@ -1,1 +1,10 @@
+__pycache__/main.cpython-313.pyc
+*.pyc
+ 
+
+# Virtual environment
+venv/
 .env
+
+# macOS system files
+.DS_Store
