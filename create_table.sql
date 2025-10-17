@@ -6,3 +6,6 @@ CREATE TABLE sales_calls (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 ); 
+
+alter table sales_calls
+add column user_id uuid references auth.users (id) on delete cascade;
