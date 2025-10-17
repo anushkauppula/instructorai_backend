@@ -3,6 +3,7 @@ check for python version. if not, download python latest.
 
 - pip3 install openai fastapi uvicorn python-multipart
 - pip3 install -r requirements.txt
+- brew install ffmpeg
 - python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 After running this, in your command prompt 
