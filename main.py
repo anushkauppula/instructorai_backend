@@ -65,12 +65,21 @@ def is_silent(audio_file_path, silence_threshold=-50.0):
     return audio.dBFS < silence_threshold
 
 @app.post("/analyze_sales_call")
-async def analyze_sales_call(file: UploadFile = File(...)):
+async def analyze_sales_call(file: UploadFile = File(...), user_id: Optional[str] = None):
     temp_file_path = "temp_audio.m4a"
     wav_file_path = "temp_audio.wav"  # <-- Initialize here
     bucket_name = "audio-files"
 
     try:
+        # Log request details for debugging
+        logger.info(f"Received request - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size if hasattr(file, 'size') else 'unknown'}")
+        
+        # Log user_id if provided
+        if user_id:
+            logger.info(f"Received request with user_id: {user_id}")
+        else:
+            logger.warning("No user_id provided in request")
+            
         if not file.filename.endswith(('.m4a', '.mp3', '.wav', '.ogg')):
             raise HTTPException(
                 status_code=400,
@@ -172,6 +181,7 @@ Transcript:
         data = {
             "transcription": transcription_text,
             "analysis": analysis,
+            "user_id": user_id,
             "created_at": datetime.now().isoformat()
         }
 
@@ -417,3 +427,7 @@ async def save_results(call_id, summary, tips):
     except Exception as e:
         logger.error(f"Error saving results to Supabase: {e}")
         raise HTTPException(status_code=500, detail="Error saving results")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
