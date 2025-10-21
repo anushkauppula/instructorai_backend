@@ -79,7 +79,23 @@ async def explore_majors(file: UploadFile = File(...)):
     bucket_name = "audio-files"  # Use existing bucket for now
 
     try:
+        # Enhanced logging for debugging
+        logger.info(f"Received file upload request:")
+        logger.info(f"  - Filename: {file.filename}")
+        logger.info(f"  - Content-Type: {file.content_type}")
+        logger.info(f"  - File size: {file.size if hasattr(file, 'size') else 'Unknown'}")
+        
+        # Check if file is provided
+        if not file.filename:
+            logger.error("No filename provided in upload")
+            raise HTTPException(
+                status_code=400,
+                detail="No file provided. Please upload an audio file."
+            )
+        
+        # Check file format
         if not file.filename.endswith(('.m4a', '.mp3', '.wav', '.ogg')):
+            logger.error(f"Invalid file format: {file.filename}")
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file format. Please upload an audio file (m4a, mp3, wav, or ogg)."
@@ -252,6 +268,25 @@ async def health_check():
         "message": "Majors Exploration AI Assistant is running smoothly 🎓",
         "version": "2.0.0"
     }
+
+@app.post("/test_upload")
+async def test_upload(file: UploadFile = File(...)):
+    """Test endpoint to debug file upload issues."""
+    try:
+        logger.info(f"Test upload received:")
+        logger.info(f"  - Filename: {file.filename}")
+        logger.info(f"  - Content-Type: {file.content_type}")
+        logger.info(f"  - File size: {file.size if hasattr(file, 'size') else 'Unknown'}")
+        
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "message": "File upload test successful"
+        }
+    except Exception as e:
+        logger.error(f"Test upload failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Test upload failed: {str(e)}")
 
 @app.get("/transcript/{exploration_id}")
 async def get_transcript(exploration_id: str):
