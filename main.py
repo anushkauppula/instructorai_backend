@@ -11,6 +11,7 @@ from supabase import create_client
 from datetime import datetime
 from typing import Optional
 from pydub import AudioSegment
+from pydantic import BaseModel
 import shutil
 
 # Configure logging
@@ -59,6 +60,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Pydantic models for request bodies
+class UserDetailsRequest(BaseModel):
+    user_id: str
+    first_name: str
+    last_name: str
+    phone_number: str
+    email: str
 
 def is_silent(audio_file_path, silence_threshold=-50.0):
     audio = AudioSegment.from_file(audio_file_path)
@@ -212,6 +221,114 @@ Transcript:
                 logger.info(f"Cleaned up temporary WAV file: {wav_file_path}")
             except Exception as e:
                 logger.error(f"Failed to clean up temporary WAV file: {str(e)}")
+
+@app.post("/user_details")
+async def save_user_details(user_data: UserDetailsRequest):
+    """Save user details to the user_details table in Supabase."""
+    try:
+        logger.info(f"Received request to save user details for user_id: {user_data.user_id}")
+        
+        # Prepare data for insertion
+        data = {
+            "user_id": user_data.user_id,
+            "first_name": user_data.first_name,
+            "last_name": user_data.last_name,
+            "phone_number": user_data.phone_number,
+            "email": user_data.email,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        # Insert into Supabase
+        result = supabase.table("user_details").insert(data).execute()
+        logger.info(f"User details saved successfully for user_id: {user_data.user_id}")
+        
+        return {
+            "message": "User details saved successfully",
+            "user_id": user_data.user_id
+        }
+    except Exception as e:
+        error_msg = f"Error saving user details: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        
+        # Check if it's a unique constraint violation
+        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            raise HTTPException(
+                status_code=409,
+                detail="User with this user_id or email already exists"
+            )
+        
+        raise HTTPException(status_code=500, detail=f"Error saving user details: {str(e)}")
+
+@app.get("/user_details/{user_id}")
+async def get_user_details(user_id: str):
+    """Get user details by user_id from Supabase."""
+    try:
+        logger.info(f"Fetching user details for user_id: {user_id}")
+        
+        # Query Supabase for user details
+        response = supabase.table("user_details").select("*").eq("user_id", user_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            user = response.data[0]
+            logger.info(f"User details found for user_id: {user_id}")
+            return {
+                "first_name": user["first_name"],
+                "last_name": user["last_name"],
+                "phone_number": user["phone_number"],
+                "email": user["email"]
+            }
+        else:
+            logger.warning(f"User not found for user_id: {user_id}")
+            raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        error_msg = f"Error fetching user details: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=f"Error fetching user details: {str(e)}")
+
+@app.post("/user_details/update")
+async def update_user_details(request: UserDetailsRequest):
+    """Update user details in Supabase."""
+    try:
+        logger.info(f"Updating user details for user_id: {request.user_id}")
+        
+        # Prepare data for update
+        data = {
+            "first_name": request.first_name,
+            "last_name": request.last_name,
+            "phone_number": request.phone_number,
+            "email": request.email,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        # Update user details in Supabase
+        response = supabase.table("user_details").update(data).eq("user_id", request.user_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            logger.info(f"User details updated successfully for user_id: {request.user_id}")
+            return {
+                "message": "User details updated successfully",
+                "status": "success"
+            }
+        else:
+            logger.warning(f"User not found for update, user_id: {request.user_id}")
+            raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        error_msg = f"Error updating user details: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        
+        # Check if it's a unique constraint violation (for email)
+        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            raise HTTPException(
+                status_code=409,
+                detail="Email already exists for another user"
+            )
+        
+        raise HTTPException(status_code=500, detail=f"Error updating user details: {str(e)}")
 
 @app.get("/health")
 async def health_check():
