@@ -109,7 +109,9 @@ async def analyze_sales_call(file: UploadFile = File(...), user_id: Optional[str
             logger.info("No audio detected in uploaded file")
             return {
                 "transcription": "",
-                "analysis": "No audio detected"
+                "analysis": "No audio detected",
+                "audio_base64": None,
+                "audio_format": None
             }
 
         # Convert audio to WAV format for consistency
@@ -189,6 +191,23 @@ Transcript:
 
         analysis = response.choices[0].message.content
 
+        # Generate audio response using TTS
+        audio_response = None
+        audio_base64 = None
+        try:
+            logger.info("Generating TTS audio response")
+            tts_response = client.audio.speech.create(
+                model="tts-1",
+                voice="alloy",
+                input=analysis
+            )
+            audio_response = tts_response.content
+            audio_base64 = base64.b64encode(audio_response).decode('utf-8')
+            logger.info(f"TTS audio generated, size: {len(audio_response)} bytes")
+        except Exception as e:
+            logger.error(f"TTS error: {str(e)}")
+            # Continue without audio if TTS fails
+
         # Store data in Supabase database
         logger.info("Storing data in Supabase database")
         data = {
@@ -201,10 +220,17 @@ Transcript:
         result = supabase.table("sales_calls").insert(data).execute()
         logger.info("Data stored successfully in database")
 
-        return {
+        response_data = {
             "transcription": transcription_text,
             "analysis": analysis
         }
+        
+        # Add audio response if available
+        if audio_base64:
+            response_data["audio_base64"] = audio_base64
+            response_data["audio_format"] = "mp3"
+
+        return response_data
 
     except HTTPException as he:
         raise he
