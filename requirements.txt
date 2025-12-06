@@ -6,6 +6,6 @@ pydantic==2.7.1
 pydantic-settings==2.1.0
 httpx==0.27.0
 openai==1.7.0
-supabase==2.15.2
+supabase==2.2.1
 starlette==0.36.3
 typing-extensions>=4.8.0
