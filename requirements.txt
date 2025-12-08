@@ -10,4 +10,5 @@ supabase
 starlette
 typing-extensions
 aiohttp
-pydub
+pydub==0.24.1
+
