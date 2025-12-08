@@ -11,3 +11,4 @@ starlette==0.36.3
 typing-extensions>=4.8.0
 aiohttp
 pydub
+pyaudioop==0.2.0
